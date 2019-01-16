@@ -24,7 +24,7 @@ A first ruleset for the Quickstart
   rule hello_monkey {
     select when echo monkey
     pre {
-      name = event:attr("name").defaultsTo("Monkey").klog("echo/monkey RETURNED")
+      name = (event:attr("name").isnull() => "Monkey" | event:attr("name")).klog("echo/monkey RETURNED")
     }
     send_directive("hello", {"resp" : "Hello " + name} )
   }
