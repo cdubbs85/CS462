@@ -16,7 +16,7 @@ ruleset wovyn_base {
       ]
     }
     
-    temperature_threshold = 75
+    temperature_threshold = 60
     notification_from_phone_number = 12108800482
     notification_to_phone_number = 12109134920
     
@@ -51,21 +51,16 @@ ruleset wovyn_base {
     pre {
       
       directive_message = (event:attrs{"temperature"} > temperature_threshold => "There was a temperature violation." | "There was not a temperature violation.").klog("result")
-   
+      
     }
     
-    if event:attrs{"temperature"} > temperature_threshold 
-      then send_directive(directive_message)
+    send_directive(directive_message)
     
     fired {
 
       raise wovyn event "threshold_violation" 
-        attributes event:attrs
+        attributes event:attrs if event:attrs{"temperature"} > temperature_threshold
         
-    } else {
-      
-      thingTwo = event:attrs.klog("No temperature violation.")
-      
     }
     
   }
@@ -75,7 +70,7 @@ ruleset wovyn_base {
     
     pre {
       
-      // holder = event:attrs.klog("temperature violation");
+      not_used = event:attrs.klog("Temperature Violation Notification");
       message = "Your wovyn sensor exceeded the temperature threshold of " 
         + temperature_threshold + " degrees fahrenheit with a temperature of " 
         + event:attrs{"temperature"} + " degrees fahrenheit."
