@@ -3,6 +3,7 @@ ruleset temperature_store {
 
     provides temperatures, threshold_violations, inrange_temperatures
     shares temperatures, threshold_violations, inrange_temperatures
+    
   }
   global {
     
