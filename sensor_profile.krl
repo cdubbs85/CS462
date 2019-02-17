@@ -2,17 +2,30 @@ ruleset sensor_profile {
   
   meta {
     shares get_profile
-    use module wovyn_base
+    provides threshold, notify_number, notification_from_phone_number
   }
   
   global {
+    threshold_default = 80;
+    notification_from_phone_number = 12108800482
+    notify_number_default = 12109134920
+    
+    
     get_profile = function() {
       {"name" : ent:sensor_name.defaultsTo("SensorDefault"), 
         "location" : ent:sensor_location.defaultsTo("LocationDefault"),
-        "threshold" : ent:temperature_threshold.defaultsTo(wovyn_base:threshold_default),
-        "notify" : ent:notify_number.defaultsTo(wovyn_base:notify_number_default)
+        "threshold" : ent:temperature_threshold.defaultsTo(threshold_default),
+        "notify" : ent:notify_number.defaultsTo(notify_number_default)
       };
-      // ent:sensor_name.defaultsTo("default")
+    }
+    
+    threshold = function() {
+      ent:temperature_threshold.defaultsTo(threshold_default)
+    }
+    
+    
+    notify_number = function() {
+      ent:notify_number.defaultsTo(notify_number_default)
     }
     
   }
