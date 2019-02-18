@@ -38,6 +38,7 @@ ruleset sensor_profile {
       fired {
         ent:sensor_name := event:attrs{"name"}.klog("Name updated");
         ent:sensor_location := event:attrs{"location"}.klog("Location updated");
+        
       }
     
   }
@@ -49,6 +50,8 @@ ruleset sensor_profile {
     
     fired {
       ent:temperature_threshold := event:attrs{"threshold"}.klog("Threshold updated");
+      
+      raise store event "update_threshold_values"
     }
   }
   
@@ -70,6 +73,8 @@ ruleset sensor_profile {
       clear ent:sensor_location;
       clear ent:temperature_threshold;
       clear ent:notify_number;
+      
+      raise store event "update_threshold_values"
     }
   }
   
