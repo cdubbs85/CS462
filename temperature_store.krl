@@ -4,6 +4,7 @@ ruleset temperature_store {
     provides temperatures, threshold_violations, inrange_temperatures
     shares temperatures, threshold_violations, inrange_temperatures
     
+    use module sensor_profile
   }
   global {
     
@@ -45,6 +46,15 @@ ruleset temperature_store {
     always {
       clear ent:temp_readings;
       clear ent:threshold_violations;
+    }
+  }
+  
+  rule update_threshold_violations {
+    select when store update_threshold_values
+    noop()
+    always {
+      clear ent:threshold_violations;
+      ent:threshold_violations := ent:temp_readings.defaultsTo([]).filter(function(x){ x{"temperature"} > sensor_profile:threshold()}).klog("Violations updated.");
     }
   }
 }
