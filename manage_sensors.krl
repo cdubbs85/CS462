@@ -32,7 +32,12 @@ ruleset manage_sensors {
         attributes { "name" : getChildSensorName(event:attrs{"name"}),
                      "color" : "#ffff00",
                      "provided_name" : event:attrs{"name"},
-                     "rids" : "key_module"
+                     "rids" : ["key_module", 
+                               "sensor_profile",
+                               "temperature_store",
+                               "twilio",
+                               "wovyn_base",
+                               "io.picolabs.logging"]
         };
         
     }
