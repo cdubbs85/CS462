@@ -2,10 +2,15 @@ ruleset manage_sensors {
   
   meta {
     
+    use module io.picolabs.wrangler alias Wrangler
   
   }
   
   global {
+    
+    threshold_default = 90;
+    default_location = "TestLocation"
+    notify_number_default = 12109134920
     
     getChildSensorName = function(name){
       "child_sensor_" + name;
@@ -51,6 +56,11 @@ ruleset manage_sensors {
       
       name = event:attrs{["rs_attrs", "provided_name"]}.klog("CHILDCREATED");
       eci = event:attrs{"eci"};
+      args = {"name": name, "location": default_location, "threshold": threshold_default, "notify": notify_number_default};
+      host = "http://localhost:8080";
+      url = host + "/sky/event/" + eci + "/fromManageSensors/sensor/profile_updated";
+      response = http:get(url,args);
+      answer = response{"content"}.decode();
       
     }
     
@@ -60,6 +70,8 @@ ruleset manage_sensors {
       
       ent:sensors := ent:sensors.defaultsTo({}).put(name, eci);
       // ent:all_sensors := ent:sensors.defaultTo({}).put(name, eci);
+      
+      Wrangler:skyQuery(eci,"sensor_profile","myFunction",args);
       
     }
     
