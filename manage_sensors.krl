@@ -28,7 +28,7 @@ ruleset manage_sensors {
     }
     
     if key_exists then
-      send_directive("sensor_exists", { "name": event:attrs{"name"}});
+      send_directive("sensor_already_exists", { "existing_name": event:attrs{"name"}});
       
     notfired {
       
