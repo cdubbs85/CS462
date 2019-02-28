@@ -71,8 +71,6 @@ ruleset manage_sensors {
       ent:sensors := ent:sensors.defaultsTo({}).put(name, eci);
       // ent:all_sensors := ent:sensors.defaultTo({}).put(name, eci);
       
-      Wrangler:skyQuery(eci,"sensor_profile","myFunction",args);
-      
     }
     
   }
