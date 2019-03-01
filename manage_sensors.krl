@@ -3,18 +3,32 @@ ruleset manage_sensors {
   meta {
     
     use module io.picolabs.wrangler alias Wrangler
+    
+    shares sensors, temperatures
   
   }
   
   global {
     
     threshold_default = 90;
-    default_location = "TestLocation"
-    notify_number_default = 12109134920
+    default_location = "TestLocation";
+    notify_number_default = 12109134920;
     
     getChildSensorName = function(name){
       "child_sensor_" + name;
-    }
+    };
+    
+    sensors = function(){
+      ent:sensors.defaultsTo({})
+    };
+    
+    temperatures = function(){
+      ent:sensors.defaultsTo({}).map(function(v, k){
+        url = "http://localhost:8080/sky/cloud/" + v +"/temperature_store/temperatures";
+        temps = http:get(url);
+        temps{"content"};
+      });
+    };
     
   }
   
