@@ -8,13 +8,21 @@ ruleset wovyn_base {
     
     use module sensor_profile
   }
+  
+  rule auto_accept {
+    select when wrangler inbound_pending_subscription_added
+    fired {
+      raise wrangler event "pending_subscription_approval"
+        attributes event:attrs
+    }
+  }
 
   
   rule process_heartbeat {
     select when wovyn heartbeat
     
     pre {
-      
+
       temperatureData = event:attrs{["genericThing", "data", "temperature"]}[0]{"temperatureF"}.klog("tempData")
       
     }
