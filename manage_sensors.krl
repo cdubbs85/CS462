@@ -3,6 +3,7 @@ ruleset manage_sensors {
   meta {
     
     use module io.picolabs.wrangler alias Wrangler
+    use module io.picolabs.subscription alias Subscriptions
     
     shares sensors, temperatures
   
@@ -19,7 +20,9 @@ ruleset manage_sensors {
     };
     
     sensors = function(){
-      ent:sensors.defaultsTo({})
+      // ent:sensors.defaultsTo({})
+      Subscriptions:established("Tx_role","sensor")
+      
     };
     
     temperatures = function(){
@@ -85,8 +88,23 @@ ruleset manage_sensors {
       ent:sensors := ent:sensors.defaultsTo({}).put(name, eci);
       // ent:all_sensors := ent:sensors.defaultTo({}).put(name, eci);
       
+      raise manage_sensors event "subscribe"
+        attributes {"name": name, "eci": eci}
+      
     }
     
+  }
+  
+  rule subscribe_to_child {
+    select when manage_sensors subscribe
+    event:send(
+      { "eci": Wrangler:myself(){"eci"}, "eid": "subscription",
+        "domain": "wrangler", "type": "subscription",
+        "attrs": { "name": event:attrs{"name"},
+                   "Rx_role": "sensor_manager",
+                   "Tx_role": "sensor",
+                   "channel_type": "subscription",
+                   "wellKnown_Tx": event:attrs{"eci"} } } )
   }
   
   rule delete_child_sensor {
