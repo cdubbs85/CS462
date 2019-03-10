@@ -19,18 +19,23 @@ ruleset manage_sensors {
       "child_sensor_" + name;
     };
     
-    sensors = function(){
-      // ent:sensors.defaultsTo({})
-      Subscriptions:established("Tx_role","sensor")
-      
-    };
+    getNameFromTx = function(tx){
+      found = ent:sensors.defaultsTo({}).filter(function(v, k){v{"tx"} == tx});
+      found.keys()[0];
+    }
     
+    sensors = function(){
+      Subscriptions:established("Tx_role","sensor").map(function(sub){
+        sub.put("name", getNameFromTx(sub{"Tx"}))
+      })
+    };
+  
     temperatures = function(){
-      ent:sensors.defaultsTo({}).map(function(v, k){
-        url = "http://localhost:8080/sky/cloud/" + v +"/temperature_store/temperatures";
-        temps = http:get(url);
-        temps{"content"};
-      });
+      Subscriptions:established("Tx_role", "sensor").map(function(sub){
+        { "name" : getNameFromTx(sub{"Tx"}),
+          "tx": sub{"Tx"}, 
+          "data": http:get("http://localhost:8080/sky/cloud/" + sub{"Tx"} +"/temperature_store/temperatures"){"content"}}
+      })
     };
     
   }
@@ -54,6 +59,7 @@ ruleset manage_sensors {
         attributes { "name" : getChildSensorName(event:attrs{"name"}),
                      "color" : "#ffff00",
                      "provided_name" : event:attrs{"name"},
+                     "role" : event:attrs{"role"}.defaultsTo("NoRoleProvided"),
                      "rids" : ["key_module", 
                                "sensor_profile",
                                "temperature_store",
@@ -85,11 +91,10 @@ ruleset manage_sensors {
     
     always {
       
-      ent:sensors := ent:sensors.defaultsTo({}).put(name, eci);
-      // ent:all_sensors := ent:sensors.defaultTo({}).put(name, eci);
+      ent:sensors := ent:sensors.defaultsTo({}).put(name, {"eci": eci} );
       
       raise manage_sensors event "subscribe"
-        attributes {"name": name, "eci": eci}
+        attributes {"name": name, "eci": eci, "role": event:attrs{["rs_attrs", "role"]}}
       
     }
     
@@ -102,9 +107,23 @@ ruleset manage_sensors {
         "domain": "wrangler", "type": "subscription",
         "attrs": { "name": event:attrs{"name"},
                    "Rx_role": "sensor_manager",
-                   "Tx_role": "sensor",
+                   "Tx_role": event:attrs{"role"},
                    "channel_type": "subscription",
                    "wellKnown_Tx": event:attrs{"eci"} } } )
+  }
+  
+  rule map_tx_to_name {
+    select when wrangler subscription_added
+    
+    pre {
+      name = event:attrs{"name"}
+    }
+
+    noop()
+    
+    always {
+      ent:sensors := ent:sensors.defaultsTo({}).put(name, ent:sensors{name}.put("tx", event:attrs{"Tx"})).klog("Sub mapped")
+    }
   }
   
   rule delete_child_sensor {
