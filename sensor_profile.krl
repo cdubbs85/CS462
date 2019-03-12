@@ -2,20 +2,16 @@ ruleset sensor_profile {
   
   meta {
     shares get_profile
-    provides threshold, notify_number, notification_from_phone_number
+    provides threshold, location
   }
   
   global {
-    threshold_default = 80;
-    notification_from_phone_number = 12108800482
-    notify_number_default = 12109134920
-    
+    threshold_default = 0;
     
     get_profile = function() {
       {"name" : ent:sensor_name.defaultsTo("SensorDefault"), 
         "location" : ent:sensor_location.defaultsTo("LocationDefault"),
-        "threshold" : ent:temperature_threshold.defaultsTo(threshold_default),
-        "notify" : ent:notify_number.defaultsTo(notify_number_default)
+        "threshold" : ent:temperature_threshold.defaultsTo(threshold_default)
       };
     }
     
@@ -23,9 +19,8 @@ ruleset sensor_profile {
       ent:temperature_threshold.defaultsTo(threshold_default)
     }
     
-    
-    notify_number = function() {
-      ent:notify_number.defaultsTo(notify_number_default)
+    location = function() {
+      ent:sensor_location.defaultsTo("LocationDefault")
     }
     
   }
@@ -55,16 +50,6 @@ ruleset sensor_profile {
     }
   }
   
-  rule sensor_profile_notify {
-    select when sensor profile_updated
-    
-    if event:attrs{"notify"} then noop();
-    
-    fired {
-      ent:notify_number := event:attrs{"notify"}.klog("Notify updated");
-    }
-  }
-  
   rule sensor_profile_reset {
     select when sensor profile_reset
     noop()
@@ -72,7 +57,6 @@ ruleset sensor_profile {
       clear ent:sensor_name;
       clear ent:sensor_location;
       clear ent:temperature_threshold;
-      clear ent:notify_number;
       
       raise store event "update_threshold_values"
     }
