@@ -60,6 +60,7 @@ ruleset manage_sensors {
                      "color" : "#ffff00",
                      "provided_name" : event:attrs{"name"},
                      "role" : event:attrs{"role"}.defaultsTo("NoRoleProvided"),
+                     "host" : event:attrs{"host"}.defaultsTo("http://localhost:8080"),
                      "rids" : ["key_module", 
                                "sensor_profile",
                                "temperature_store",
