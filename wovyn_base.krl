@@ -1,12 +1,9 @@
 ruleset wovyn_base {
   meta {
     shares __testing
-    use module key_module
-    use module twilio alias twilio
-      with account_sid = keys:twilio{"account_sid"}
-            auth_token = keys:twilio{"auth_token"}
     
     use module sensor_profile
+    use module io.picolabs.subscription alias Subscriptions
   }
   
   rule auto_accept {
@@ -61,17 +58,21 @@ ruleset wovyn_base {
   rule threshold_notification {
     select when wovyn threshold_violation
     
+    foreach Subscriptions:established("Tx_role","sensor_manager") setting (manager)
     pre {
-      
-      not_used = event:attrs.klog("Temperature Violation Notification");
-      message = "Your wovyn sensor exceeded the temperature threshold of " 
-        + sensor_profile:threshold() + " degrees fahrenheit with a temperature of " 
-        + event:attrs{"temperature"} + " degrees fahrenheit."
-    
+      man_host = manager{"Tx_host"};
+      tx = manager{"Tx"};
     }
     
-    twilio:send_sms(sensor_profile:notify_number(), sensor_profile:notification_from_phone_number, message)
-  
+    if man_host && tx then event:send({"eci":tx, 
+                                       "domain":"manager",
+                                       "type":"threshold_violation",
+                                       "attrs": {"temperature":event:attrs{"temperature"},
+                                                 "threshold": sensor_profile:threshold(),
+                                                 "location": sensor_profile:location()
+                                       }}, 
+                                       host=man_host) 
+
   }
   
   
