@@ -32,6 +32,7 @@ ruleset manage_sensors {
   
     temperatures = function(){
       Subscriptions:established("Tx_role", "sensor").map(function(sub){
+        not_used = sub.klog("HERE");
         { "name" : getNameFromTx(sub{"Tx"}),
           "tx": sub{"Tx"}, 
           "data": http:get("http://localhost:8080/sky/cloud/" + sub{"Tx"} +"/temperature_store/temperatures"){"content"}}
@@ -161,30 +162,21 @@ ruleset manage_sensors {
       eci = event:attrs{"eci"};
       host = event:attrs{"host"};
       role = event:attrs{"role"};
+      location = event:attrs{"location"};
       key_exists = ent:sensors >< event:attrs{"name"};
     }
     
-    if name && eci && host && role && not key_exists then noop()
+    if name && eci && host && role && location && not key_exists then noop()
     
     fired {
-      raise sensor event "add_existing_ready"
+      
+      ent:sensors := ent:sensors.defaultsTo({}).put(name, {"eci": eci, "location": location} );
+      
+      holder = event:attrs.klog("HERE");
+      raise manage_sensors event "subscribe"
         attributes event:attrs
+        
     }
-  }
-  
-  rule create_sub_to_seperate_host {
-    select when sensor add_existing_ready
-    
-    event:send(
-      { "eci": Wrangler:myself(){"eci"}, "eid": "subscription",
-        "domain": "wrangler", "type": "subscription",
-        "Tx_host" : event:attrs{"host"},
-        "attrs": { "name": event:attrs{"name"},
-                   "Rx_role": "sensor_manager",
-                   "Tx_role": event:attrs{"role"},
-                   "channel_type": "subscription",
-                   "wellKnown_Tx": event:attrs{"eci"} } } )
-    
   }
   
   rule delete_child_sensor {
