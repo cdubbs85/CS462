@@ -6,6 +6,7 @@ ruleset manage_sensors {
     use module io.picolabs.subscription alias Subscriptions
     
     shares sensors, temperatures
+    provides threshold_default
   
   }
   
@@ -13,7 +14,6 @@ ruleset manage_sensors {
     
     threshold_default = 90;
     default_location = "TestLocation";
-    notify_number_default = 12109134920;
     
     getChildSensorName = function(name){
       "child_sensor_" + name;
@@ -59,12 +59,11 @@ ruleset manage_sensors {
         attributes { "name" : getChildSensorName(event:attrs{"name"}),
                      "color" : "#ffff00",
                      "provided_name" : event:attrs{"name"},
-                     "role" : event:attrs{"role"}.defaultsTo("NoRoleProvided"),
+                     "role" : event:attrs{"role"}.defaultsTo("DefaultRole"),
                      "host" : event:attrs{"host"}.defaultsTo("http://localhost:8080"),
-                     "rids" : ["key_module", 
-                               "sensor_profile",
+                     "location" : event:attrs{"location"}.defaultsTo(default_location),
+                     "rids" : ["sensor_profile",
                                "temperature_store",
-                               "twilio",
                                "wovyn_base",
                                "io.picolabs.logging"]
         };
@@ -77,25 +76,26 @@ ruleset manage_sensors {
     select when wrangler child_initialized
     
     pre {
-      
-      name = event:attrs{["rs_attrs", "provided_name"]}.klog("CHILDCREATED");
+      not_used = event:attrs.klog("CHILDCREATED");
+      name = event:attrs{["rs_attrs", "provided_name"]};
       eci = event:attrs{"eci"};
-      args = {"name": name, "location": default_location, "threshold": threshold_default, "notify": notify_number_default};
-      host = "http://localhost:8080";
-      url = host + "/sky/event/" + eci + "/fromManageSensors/sensor/profile_updated";
-      response = http:get(url,args);
-      answer = response{"content"}.decode();
-      
+      role = event:attrs{["rs_attrs", "role"]};
+      host = event:attrs{["rs_attrs", "host"]};
+      location = event:attrs{["rs_attrs", "location"]};
     }
     
     noop()
     
     always {
       
-      ent:sensors := ent:sensors.defaultsTo({}).put(name, {"eci": eci} );
+      ent:sensors := ent:sensors.defaultsTo({}).put(name, {"eci": eci, "location": location} );
       
       raise manage_sensors event "subscribe"
-        attributes {"name": name, "eci": eci, "role": event:attrs{["rs_attrs", "role"]}}
+        attributes {"name": name, 
+                    "eci": eci, 
+                    "role": role,
+                    "host": host
+        }
       
     }
     
@@ -103,28 +103,88 @@ ruleset manage_sensors {
   
   rule subscribe_to_child {
     select when manage_sensors subscribe
+    
     event:send(
       { "eci": Wrangler:myself(){"eci"}, "eid": "subscription",
         "domain": "wrangler", "type": "subscription",
+        "Tx_host": event:attrs{"host"},
         "attrs": { "name": event:attrs{"name"},
                    "Rx_role": "sensor_manager",
                    "Tx_role": event:attrs{"role"},
                    "channel_type": "subscription",
-                   "wellKnown_Tx": event:attrs{"eci"} } } )
+                   "wellKnown_Tx": event:attrs{"eci"}}})
   }
   
   rule map_tx_to_name {
     select when wrangler subscription_added
     
     pre {
+      
+      not_used = event:attrs.klog("SUBSCRIPTIONADDED")
       name = event:attrs{"name"}
+      tx = event:attrs{"Tx"}
+      
     }
 
     noop()
     
     always {
-      ent:sensors := ent:sensors.defaultsTo({}).put(name, ent:sensors{name}.put("tx", event:attrs{"Tx"})).klog("Sub mapped")
+      ent:sensors := ent:sensors.defaultsTo({}).put(name, ent:sensors{name}.put("tx", event:attrs{"Tx"})).klog("SUBSCRIPTIONMAPPED");
+
+      raise manage_sensors event "init_profile"
+        attributes {"name": name, "tx": tx, "Tx_host": event:attrs{"Tx_host"}}
+      
     }
+  }
+  
+  rule initialize_profile {
+    select when manage_sensors init_profile
+    
+    pre {
+      not_used = event:attrs.klog("PROFILEINIT")
+      name = event:attrs{"name"}
+      args = {"name": name, "location": ent:sensors{[name,"location"]}, "threshold": threshold_default};
+      host = "http://localhost:8080";
+      url = (event:attrs{"Tx_host"} + "/sky/event/" + event:attrs{"tx"} + "/fromManageSensors/sensor/profile_updated").klog("URL");
+    
+    }
+    
+    http:post(url,args)
+    
+  }
+  
+  rule add_existing_sensor_pico {
+    select when sensor add_existing
+    
+    pre {
+      name = event:attrs{"name"};
+      eci = event:attrs{"eci"};
+      host = event:attrs{"host"};
+      role = event:attrs{"role"};
+      key_exists = ent:sensors >< event:attrs{"name"};
+    }
+    
+    if name && eci && host && role && not key_exists then noop()
+    
+    fired {
+      raise sensor event "add_existing_ready"
+        attributes event:attrs
+    }
+  }
+  
+  rule create_sub_to_seperate_host {
+    select when sensor add_existing_ready
+    
+    event:send(
+      { "eci": Wrangler:myself(){"eci"}, "eid": "subscription",
+        "domain": "wrangler", "type": "subscription",
+        "Tx_host" : event:attrs{"host"},
+        "attrs": { "name": event:attrs{"name"},
+                   "Rx_role": "sensor_manager",
+                   "Tx_role": event:attrs{"role"},
+                   "channel_type": "subscription",
+                   "wellKnown_Tx": event:attrs{"eci"} } } )
+    
   }
   
   rule delete_child_sensor {
