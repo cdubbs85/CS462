@@ -32,10 +32,10 @@ ruleset manage_sensors {
   
     temperatures = function(){
       Subscriptions:established("Tx_role", "sensor").map(function(sub){
-        not_used = sub.klog("HERE");
+        not_here = sub.klog("HERE");
         { "name" : getNameFromTx(sub{"Tx"}),
           "tx": sub{"Tx"}, 
-          "data": http:get("http://localhost:8080/sky/cloud/" + sub{"Tx"} +"/temperature_store/temperatures"){"content"}}
+          "data": http:get(sub{"Tx_host"} + "/sky/cloud/" + sub{"Tx"} +"/temperature_store/temperatures"){"content"}}
       })
     };
     
@@ -104,16 +104,17 @@ ruleset manage_sensors {
   
   rule subscribe_to_child {
     select when manage_sensors subscribe
-    
+
     event:send(
       { "eci": Wrangler:myself(){"eci"}, "eid": "subscription",
         "domain": "wrangler", "type": "subscription",
-        "Tx_host": event:attrs{"host"},
         "attrs": { "name": event:attrs{"name"},
                    "Rx_role": "sensor_manager",
                    "Tx_role": event:attrs{"role"},
                    "channel_type": "subscription",
-                   "wellKnown_Tx": event:attrs{"eci"}}})
+                   "wellKnown_Tx": event:attrs{"eci"},
+                   "Tx_host": event:attrs{"host"}
+        }})
   }
   
   rule map_tx_to_name {
@@ -172,7 +173,6 @@ ruleset manage_sensors {
       
       ent:sensors := ent:sensors.defaultsTo({}).put(name, {"eci": eci, "location": location} );
       
-      holder = event:attrs.klog("HERE");
       raise manage_sensors event "subscribe"
         attributes event:attrs
         
