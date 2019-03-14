@@ -32,7 +32,6 @@ ruleset manage_sensors {
   
     temperatures = function(){
       Subscriptions:established("Tx_role", "sensor").map(function(sub){
-        not_here = sub.klog("HERE");
         { "name" : getNameFromTx(sub{"Tx"}),
           "tx": sub{"Tx"}, 
           "data": http:get(sub{"Tx_host"} + "/sky/cloud/" + sub{"Tx"} +"/temperature_store/temperatures"){"content"}}
@@ -89,7 +88,7 @@ ruleset manage_sensors {
     
     always {
       
-      ent:sensors := ent:sensors.defaultsTo({}).put(name, {"eci": eci, "location": location} );
+      ent:sensors := ent:sensors.defaultsTo({}).put(name, {"eci": eci, "location": location, "host": host} );
       
       raise manage_sensors event "subscribe"
         attributes {"name": name, 
@@ -142,12 +141,13 @@ ruleset manage_sensors {
   rule initialize_profile {
     select when manage_sensors init_profile
     
+    // When adding existing sensors I may not want to update the profile (it's a design decision). For now it does. 
     pre {
       not_used = event:attrs.klog("PROFILEINIT")
       name = event:attrs{"name"}
       args = {"name": name, "location": ent:sensors{[name,"location"]}, "threshold": threshold_default};
-      host = "http://localhost:8080";
-      url = (event:attrs{"Tx_host"} + "/sky/event/" + event:attrs{"tx"} + "/fromManageSensors/sensor/profile_updated").klog("URL");
+      host = ent:sensors{[name, "host"]};
+      url = (host + "/sky/event/" + event:attrs{"tx"} + "/fromManageSensors/sensor/profile_updated").klog("URL");
     
     }
     
@@ -171,7 +171,7 @@ ruleset manage_sensors {
     
     fired {
       
-      ent:sensors := ent:sensors.defaultsTo({}).put(name, {"eci": eci, "location": location} );
+      ent:sensors := ent:sensors.defaultsTo({}).put(name, {"eci": eci, "location": location, "host": host} );
       
       raise manage_sensors event "subscribe"
         attributes event:attrs
