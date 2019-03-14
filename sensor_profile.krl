@@ -6,7 +6,7 @@ ruleset sensor_profile {
   }
   
   global {
-    threshold_default = 0;
+    threshold_default = 100;
     
     get_profile = function() {
       {"name" : ent:sensor_name.defaultsTo("SensorDefault"), 
