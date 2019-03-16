@@ -69,7 +69,7 @@ ruleset temperature_store {
                 "eid": eid, 
                 "domain":"manage_sensors", 
                 "type":"collect", 
-                "attrs":{"data":temperatures()}}, 
+                "attrs":{"data":temperatures(), "rx":subscription{"Rx"}}}, 
                 host=subscription{"Tx_host"})
   }
   
