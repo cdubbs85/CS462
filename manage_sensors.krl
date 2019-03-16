@@ -215,4 +215,38 @@ ruleset manage_sensors {
     
   }
   
+   rule request_temperatures {
+    select when manage_sensors initiate
+    foreach Subscriptions:established("Tx_role","sensor") setting (sensor)
+    pre {
+      not_used = sensor.klog("SENDING_TEMPERATURE_REQUEST");
+      // name = getNameFromTx(sensor{"Tx"});
+      request_id = "request_" + ent:gather_id.defaultsTo(0)
+    }
+
+    event:send({"eci": sensor{"Tx"}, "eid": request_id, "domain":"sensor", "type":"temperatures"}, host=sensor{"Tx_host"})
+    
+    fired {
+      ent:gather_id := ent:gather_id.defaultsTo(0) + 1 on final;
+      ent:reports := ent:reports.defaultsTo({}).put(request_id, {"collected":0})
+    }
+    
+  }
+  
+  rule collect_temperatures {
+    select when manage_sensors collect
+    pre {
+      eid = event:eid.klog("TEMP_REQUEST_RETURNED");
+      subscription = Subscriptions:established("Rx",meta:eci)[0]
+      data = event:attrs{"data"}
+      name = getNameFromTx(subscription{"Tx"})
+    }
+    if data && eid then noop()
+    fired {
+      increment = ent:reports{[eid, "collected"]} + 1;
+      list = ent:reports{[eid, "data"]}.defaultsTo([]).append({"name":name, "tx":subscription{"Tx"}, "temperatures":data});
+      ent:reports{eid} := {"collected":increment, "data": list}
+    }
+  }
+  
 }
