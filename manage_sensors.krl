@@ -220,7 +220,6 @@ ruleset manage_sensors {
     foreach Subscriptions:established("Tx_role","sensor") setting (sensor)
     pre {
       not_used = sensor.klog("SENDING_TEMPERATURE_REQUEST");
-      // name = getNameFromTx(sensor{"Tx"});
       request_id = "request_" + ent:gather_id.defaultsTo(0)
     }
 
