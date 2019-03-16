@@ -74,6 +74,4 @@ ruleset wovyn_base {
                                          host=man_host) 
 
   }
-  
-  
 }
