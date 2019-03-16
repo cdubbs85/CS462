@@ -5,6 +5,7 @@ ruleset temperature_store {
     shares temperatures, threshold_violations, inrange_temperatures
     
     use module sensor_profile
+    use module io.picolabs.subscription alias Subscriptions
   }
   global {
     
@@ -57,4 +58,19 @@ ruleset temperature_store {
       ent:threshold_violations := ent:temp_readings.defaultsTo([]).filter(function(x){ x{"temperature"} > sensor_profile:threshold()}).klog("Violations updated.");
     }
   }
+  
+  rule collection_request {
+    select when sensor temperatures
+    pre {
+      eid = event:eid.klog("REQUESTING_TEMPS");
+      subscription = Subscriptions:established("Rx",meta:eci)[0]
+    }
+    event:send({"eci": subscription{"Tx"}, 
+                "eid": eid, 
+                "domain":"manage_sensors", 
+                "type":"collect", 
+                "attrs":{"data":temperatures()}}, 
+                host=subscription{"Tx_host"})
+  }
+  
 }
