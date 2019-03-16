@@ -5,7 +5,7 @@ ruleset manage_sensors {
     use module io.picolabs.wrangler alias Wrangler
     use module io.picolabs.subscription alias Subscriptions
     
-    shares sensors, temperatures
+    shares sensors, temperatures, five_recent_reports
     provides threshold_default
   
   }
@@ -37,6 +37,14 @@ ruleset manage_sensors {
           "data": http:get(sub{"Tx_host"} + "/sky/cloud/" + sub{"Tx"} +"/temperature_store/temperatures"){"content"}}
       })
     };
+    
+    five_recent_reports = function(){
+      response = ent:reports.defaultsTo({"response":"no_reports"});
+      (response.length() < 6) => response |
+      ent:reports.filter(function(v,k){
+        k.split(re#_#)[1] < ent:gather_id && k.split(re#_#)[1] > ent:gather_id - 6
+      })
+    }
     
   }
   
@@ -179,6 +187,7 @@ ruleset manage_sensors {
     }
   }
   
+  // Remove events *************************************************************
   rule delete_child_sensor {
     select when sensor unneeded
     
@@ -214,8 +223,10 @@ ruleset manage_sensors {
     }
     
   }
+  // Remove events *************************************************************
   
-   rule request_temperatures {
+  // Scatter-Gather events *****************************************************
+  rule request_temperatures {
     select when manage_sensors initiate
     foreach Subscriptions:established("Tx_role","sensor") setting (sensor)
     pre {
@@ -247,5 +258,6 @@ ruleset manage_sensors {
       ent:reports{eid} := {"collected":increment, "data": list}
     }
   }
+  // Scatter-Gather events *****************************************************
   
 }
