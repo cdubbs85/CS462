@@ -60,18 +60,18 @@ ruleset wovyn_base {
     
     foreach Subscriptions:established("Tx_role","sensor_manager") setting (manager)
       pre {
-        man_host = manager{"Tx_host"};
+        manager_host = manager{"Tx_host"};
         tx = manager{"Tx"};
       }
       
-      if man_host && tx then event:send({"eci":tx, 
+      if manager_host && tx then event:send({"eci":tx, 
                                          "domain":"manager",
                                          "type":"threshold_violation",
                                          "attrs": {"temperature":event:attrs{"temperature"},
                                                    "threshold": sensor_profile:threshold(),
                                                    "location": sensor_profile:location()
                                          }}, 
-                                         host=man_host) 
+                                         host=manager_host) 
 
   }
 }
