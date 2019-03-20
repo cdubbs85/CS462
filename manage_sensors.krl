@@ -237,8 +237,8 @@ ruleset manage_sensors {
     event:send({"eci": sensor{"Tx"}, "eid": request_id, "domain":"sensor", "type":"temperatures"}, host=sensor{"Tx_host"})
     
     fired {
+      ent:reports := ent:reports.defaultsTo({}).put(request_id, {"requests_sent":Subscriptions:established("Tx_role","sensor").length() , "collected": 0}) on final;
       ent:gather_id := ent:gather_id.defaultsTo(0) + 1 on final;
-      ent:reports := ent:reports.defaultsTo({}).put(request_id, {"collected":0})
     }
     
   }
@@ -255,7 +255,7 @@ ruleset manage_sensors {
     fired {
       increment = ent:reports{[eid, "collected"]} + 1;
       list = ent:reports{[eid, "data"]}.defaultsTo([]).append({"name":name, "tx":subscription{"Tx"}, "temperatures":data});
-      ent:reports{eid} := {"collected":increment, "data": list}
+      ent:reports{eid} := {"requests_sent": ent:reports{[eid, "requests_sent"]}, "collected":increment, "data": list}
     }
   }
   // Scatter-Gather events *****************************************************
