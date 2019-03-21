@@ -234,10 +234,17 @@ ruleset manage_sensors {
       request_id = "request_" + ent:gather_id.defaultsTo(0)
     }
 
-    event:send({"eci": sensor{"Tx"}, "eid": request_id, "domain":"sensor", "type":"temperatures"}, host=sensor{"Tx_host"})
+    event:send({"eci": sensor{"Tx"}, 
+                "eid": request_id, 
+                "domain":"sensor", 
+                "type":"temperatures"}, 
+                host=sensor{"Tx_host"})
     
     fired {
-      ent:reports := ent:reports.defaultsTo({}).put(request_id, {"requests_sent":Subscriptions:established("Tx_role","sensor").length() , "collected": 0}) on final;
+      ent:reports := ent:reports.defaultsTo({}).put(request_id, 
+                          {"requests_sent":Subscriptions:established("Tx_role","sensor").length(), 
+                          "collected": 0}) 
+                          on final;
       ent:gather_id := ent:gather_id.defaultsTo(0) + 1 on final;
     }
     
