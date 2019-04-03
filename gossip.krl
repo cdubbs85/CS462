@@ -1,13 +1,14 @@
 ruleset gossip_protocol {
   meta {
-    shares __testing, temps, track
+    shares __testing, temps, track, blah
     use module io.picolabs.subscription alias Subscriptions
   }
   global {
     __testing = { "queries":
       [ { "name": "__testing" },
         { "name": "temps"},
-        { "name": "track"}
+        { "name": "track"},
+        { "name": "blah"}
       //, { "name": "entry", "args": [ "key" ] }
       ] , "events":
       [ { "domain": "gossip", "type": "seen", "attrs": ["seen"] }
@@ -17,6 +18,7 @@ ruleset gossip_protocol {
     // For testing
     temps = function(){ent:temperature_logs}
     track = function(){ent:tracker}
+    blah = function(){random:integer(5)}
     // ***********
     
     createMessage = function(data){
@@ -27,26 +29,40 @@ ruleset gossip_protocol {
       }
     }
     
-    // returns true if there are messages data has not seen
+    // returns true if messages contains a message with a value higher than value
+    compareMessagesToValue = function(messages, value){
+      results = messages.filter(function(v, k){
+        k.as("Number") > value.as("Number")
+      });
+      results.length() > 0
+    }
+    
+    // returns true if there are messages I have that data has not seen
     searchMessages = function(data){
-      
+      missing = data.filter(function(v,k){
+        messages = ent:temperature_logs{k};
+        // If messages is null, I don't have any messages from that origin so just ingore
+        messages => compareMessagesToValue(messages, v) | false;
+      });
+      missing.length() > 0
     }
     
     getPeer = function(){
-      // missing_my_temps = needsMyTemps().klog("NEEDSMYOWNTEMPS");
       all_subs = Subscriptions:established("Tx_role", "node");
       missing = all_subs.filter(function(x){
-        seen_data = ent:tracker{x{"Tx"}}.klog("SEEN_DATA");
+        seen_data = ent:tracker{x{"Tx"}};
         seen_data => searchMessages(seen_data) | true;
       });
       
-      {"test":1}
+      // Pick a random eligible subscriber and return its channel
+      (missing.length() == 0) => null | missing[random:integer(missing.length()-1)]{"Tx"}
     }
     
     prepareMessage = function(subscriber){
-      {"test":"Yo"}
+      (random:integer(1) == 0) => prepareRumor(subscriber) | prepareSeen(subscriber)
     }
     
+    // should get the lowest number message i have that the subscriber hasn't seen
     prepareRumor = function(subscriber){
       // pick a message the subscriber hasn't seen and send it too them
     }
@@ -83,7 +99,7 @@ ruleset gossip_protocol {
   rule propagate {
     select when gossip heartbeat where ent:process == "on"
     pre {
-      // subscriber = getPeer().klog("GETTINGPEER")
+      subscriber = getPeer().klog("PEER")
       // m = prepareMessage(subscriber).klog("MESSAGEPREPARED")
     }
   }
