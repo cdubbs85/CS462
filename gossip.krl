@@ -1,6 +1,6 @@
 ruleset gossip_protocol {
   meta {
-    shares __testing, temps, track, blah
+    shares __testing, temps, track, blah, getFirstMessage
     use module io.picolabs.subscription alias Subscriptions
   }
   global {
@@ -8,7 +8,8 @@ ruleset gossip_protocol {
       [ { "name": "__testing" },
         { "name": "temps"},
         { "name": "track"},
-        { "name": "blah"}
+        { "name": "blah"},
+        { "name": "getFirstMessage"}
       //, { "name": "entry", "args": [ "key" ] }
       ] , "events":
       [ { "domain": "gossip", "type": "seen", "attrs": ["seen"] }
@@ -53,18 +54,56 @@ ruleset gossip_protocol {
         seen_data = ent:tracker{x{"Tx"}};
         seen_data => searchMessages(seen_data) | true;
       });
-      
       // Pick a random eligible subscriber and return its channel
       (missing.length() == 0) => null | missing[random:integer(missing.length()-1)]{"Tx"}
     }
     
     prepareMessage = function(subscriber){
-      (random:integer(1) == 0) => prepareRumor(subscriber) | prepareSeen(subscriber)
+      prepareRumor(subscriber)
+      // (random:integer(1) == 0) => prepareRumor(subscriber) | prepareSeen(subscriber)
+    }
+    
+    // get the first message in your logs
+    getFirstMessage = function(){
+      msgs = ent:temperature_logs.values();
+      msgs => msgs[0].values()[0] | null
+    }
+    
+    getLowest = function(messages){
+      keys = messages.keys();
+      lowest = keys[0];
+      messages.map(function(v,k){
+        k.as("Number") < lowest.as("Number")
+      });
+      messages{lowest}
+    }
+    
+    getMessageFromHighestVal = function(messages, value){
+      higher = messages.filter(function(v,k){
+        k.as("Number") > value
+      });
+      getLowest(higher)
+    }
+    
+    getNextFromSeen = function(seen){
+      filtered = seen.map(function(v,k){
+        messages = ent:temperature_logs{k};
+        // if i have no messages with this origin id, skip. Otherwise, check for larger
+        messages => getMessageFromHighestVal(messages, v) | null
+      });
+      not_null = filtered.filter(function(v,k){
+        v => true | false
+      });
+      final = not_null.values();
+      final => final[0] | null
     }
     
     // should get the lowest number message i have that the subscriber hasn't seen
     prepareRumor = function(subscriber){
-      // pick a message the subscriber hasn't seen and send it too them
+      seen = ent:tracker{subscriber};
+      // if we don't know anything about what this subscriber has seen, send them the first message we have
+      //  otherwise, use their seen to find a message to send
+      seen => getNextFromSeen(seen) | getFirstMessage()
     }
     
     prepareSeen = function(){
@@ -100,7 +139,14 @@ ruleset gossip_protocol {
     select when gossip heartbeat where ent:process == "on"
     pre {
       subscriber = getPeer().klog("PEER")
-      // m = prepareMessage(subscriber).klog("MESSAGEPREPARED")
+      m = prepareMessage(subscriber).klog("MESSAGEPREPARED")
+    }
+    
+    // send the message
+    // if subscriber && m then noop()
+    
+    fired {
+      //update seen
     }
   }
   
@@ -131,6 +177,7 @@ ruleset gossip_protocol {
     
     fired {
       ent:tracker{sender} := seen
+      // send the sender the messages you have that they don't
     }
   }
   
