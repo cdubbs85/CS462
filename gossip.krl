@@ -12,7 +12,8 @@ ruleset gossip_protocol {
         { "name": "getFirstMessage"}
       //, { "name": "entry", "args": [ "key" ] }
       ] , "events":
-      [ { "domain": "gossip", "type": "seen", "attrs": ["seen"] }
+      [ { "domain": "gossip", "type": "seen", "attrs": ["seen"] },
+        { "domain": "test", "type": "test", "attrs": ["temps"] }
       //, { "domain": "d2", "type": "t2", "attrs": [ "a1", "a2" ] }
       ]
     }
@@ -58,11 +59,6 @@ ruleset gossip_protocol {
       (missing.length() == 0) => null | missing[random:integer(missing.length()-1)]{"Tx"}
     }
     
-    prepareMessage = function(subscriber){
-      prepareRumor(subscriber)
-      // (random:integer(1) == 0) => prepareRumor(subscriber) | prepareSeen(subscriber)
-    }
-    
     // get the first message in your logs
     getFirstMessage = function(){
       msgs = ent:temperature_logs.values();
@@ -103,11 +99,24 @@ ruleset gossip_protocol {
       seen = ent:tracker{subscriber};
       // if we don't know anything about what this subscriber has seen, send them the first message we have
       //  otherwise, use their seen to find a message to send
-      seen => getNextFromSeen(seen) | getFirstMessage()
+      msg = seen => getNextFromSeen(seen) | getFirstMessage();
+      msg => {"type":"rumor", "msg":msg} | null;
     }
     
     prepareSeen = function(){
       // look through your messages and prepare a seen structured message
+      vals = ent:temperature_logs.map(function(v,k){
+        vals = (v.keys().map(function(x){x.as("Number")})).sort();
+        highest = vals.reduce(function(f, s){ s == f + 1 => s | -1 });
+        highest;
+      });
+      vals.keys().length() > 0 => {"type":"seen", "msg":vals} | null
+    }
+    
+    prepareMessage = function(subscriber){
+      // prepareRumor(subscriber);
+      prepareSeen();
+      // (random:integer(1) == 0) => prepareRumor(subscriber) | prepareSeen(subscriber)
     }
     
     update = function(){
