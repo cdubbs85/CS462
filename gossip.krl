@@ -10,13 +10,14 @@ ruleset gossip_protocol {
         { "name": "track"}
       //, { "name": "entry", "args": [ "key" ] }
       ] , "events":
-      [ //{ "domain": "d1", "type": "t1" }
+      [ { "domain": "gossip", "type": "seen", "attrs": ["seen"] }
       //, { "domain": "d2", "type": "t2", "attrs": [ "a1", "a2" ] }
       ]
     }
-    
+    // For testing
     temps = function(){ent:temperature_logs}
     track = function(){ent:tracker}
+    // ***********
     
     createMessage = function(data){
       {"MessageID": meta:picoId + ":" + ent:sequenceNum,
@@ -46,18 +47,17 @@ ruleset gossip_protocol {
       {"test":"Yo"}
     }
     
-    update = function(){
-      
+    prepareRumor = function(subscriber){
+      // pick a message the subscriber hasn't seen and send it too them
     }
     
-    // needsMyTemps = function(){
-    //   subs = Subscriptions:established("Tx_role", "node").klog("SUBS");
-    //   has_not_seen = subs.filter(function(x){
-    //     node = ent:tracker{x{"Tx"}}.klog("NODE");
-    //     node => (node{meta:picoId}.as("Number") < ent:sequenceNum => true | false) | true
-    //   });
-    //   has_not_seen
-    // }
+    prepareSeen = function(){
+      // look through your messages and prepare a seen structured message
+    }
+    
+    update = function(){
+      // update the seen if you sent a rumor (i don't think i need to if i only sent a seen)
+    }
     
     getNumber = function(string){
       holder = string.split(re#:#);
@@ -91,18 +91,14 @@ ruleset gossip_protocol {
   rule gossip_rumor {
     select when gossip rumor where ent:process == "on"
     pre {
-      sensorId = event:attrs{"SensorID"}
-      messageNum = getNumber(event:attrs{"MessageID"})
-      message = {"MessageID": event:attrs{"MessageID"},
-                 "SensorID": event:attrs{"SensorID"},
-                 "Temperature": event:attrs{"Temperature"},
-                 "Timestamp": event:attrs{"Timestamp"}
-                }
+      message = event:attrs{"message"}
+      sensorId = message{"SensorID"}
+      messageNum = getNumber(message{"MessageID"})
     }
     
-    if sensorId && message then noop()
+    if message then noop()
     
-    fired{
+    fired {
       holder = ent:temperature_logs{sensorId}.defaultsTo({}).put(messageNum,message);
       ent:temperature_logs{sensorId} := holder;
     }
@@ -110,6 +106,16 @@ ruleset gossip_protocol {
   
   rule gossip_seen {
     select when gossip seen where ent:process == "on"
+    pre {
+      seen = event:attrs{"seen"}
+      sender = Subscriptions:established("Rx",meta:eci)[0]{"Tx"}
+    }
+    
+    if seen then noop()
+    
+    fired {
+      ent:tracker{sender} := seen
+    }
   }
   
   // Helpers *******************************************************************
@@ -165,10 +171,26 @@ ruleset gossip_protocol {
     }
     always {
       // Add to messages
-      tempOne = ent:temperature_logs.get(meta:picoId).defaultsTo({}).put(ent:sequenceNum, msg);
-      ent:temperature_logs{meta:picoId} := tempOne;
+      holder = ent:temperature_logs.get(meta:picoId).defaultsTo({}).put(ent:sequenceNum, msg);
+      ent:temperature_logs{meta:picoId} := holder;
       // Increment sequence
       ent:sequenceNum := ent:sequenceNum + 1;
     }
   }
+  
+  // Just for testing the seen message
+  rule send_seen {
+    select when testing send_seen
+    event:send({"eci":"YL21dYzzX719qSY7Uf7CM8", "domain":"gossip", "type":"seen", "attrs":event:attrs})
+  }
 }
+    // NOT NEEDED - DELETE BEFORE TURN IN
+    // keeping just in case
+    // needsMyTemps = function(){
+    //   subs = Subscriptions:established("Tx_role", "node").klog("SUBS");
+    //   has_not_seen = subs.filter(function(x){
+    //     node = ent:tracker{x{"Tx"}}.klog("NODE");
+    //     node => (node{meta:picoId}.as("Number") < ent:sequenceNum => true | false) | true
+    //   });
+    //   has_not_seen
+    // }
