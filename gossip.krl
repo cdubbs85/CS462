@@ -50,7 +50,7 @@ ruleset gossip_protocol {
     }
     
     getPeer = function(){
-      all_subs = Subscriptions:established("Tx_role", "node");
+      all_subs = Subscriptions:established("Tx_role", "node").klog("SUBS");
       missing = all_subs.filter(function(x){
         seen_data = ent:tracker{x{"Tx"}};
         seen_data => searchMessages(seen_data) | true;
@@ -115,8 +115,8 @@ ruleset gossip_protocol {
     
     prepareMessage = function(subscriber){
       // prepareRumor(subscriber);
-      prepareSeen();
-      // (random:integer(1) == 0) => prepareRumor(subscriber) | prepareSeen(subscriber)
+      // prepareSeen();
+      (random:integer(1) == 0) => prepareRumor(subscriber) | prepareSeen(subscriber)
     }
     
     update = function(){
@@ -152,19 +152,40 @@ ruleset gossip_protocol {
     }
     
     // send the message
-    // if subscriber && m then noop()
+    if subscriber && m then noop()
     
     fired {
-      //update seen
+      raise send event "rumor" attributes {"to":subscriber,"msg": m{"msg"}} if m{"type"} == "rumor";
+      raise send event "seen" attributes {"to":subscriber,"msg": m{"msg"}} if m{"type"} == "seen";
     }
+  }
+  
+  rule send_rumor {
+    select when send rumor
+    pre {
+      to = event:attrs{"to"}
+      msg = event:attrs{"msg"}
+    }
+    
+    event:send({"eci":to, "domain":"gossip", "type":"rumor", "attrs":{"rumor": msg}})
+    
+    always {
+      ent:tracker{to} := ent:tracker{to}.defaultsTo({}).put(msg{"SensorID"},getNumber(msg{"MessageID"}) )
+    }
+  }
+  
+  rule send_seen {
+    select when send seen
+    event:send({"eci":event:attrs{"to"}, "domain":"gossip", "type":"seen", "attrs":{"seen": event:attrs{"msg"}}})
   }
   
   rule gossip_rumor {
     select when gossip rumor where ent:process == "on"
     pre {
-      message = event:attrs{"message"}
+      message = event:attrs{"rumor"}
       sensorId = message{"SensorID"}
       messageNum = getNumber(message{"MessageID"})
+      sender = Subscriptions:established("Rx",meta:eci)[0]{"Tx"}
     }
     
     if message then noop()
@@ -172,6 +193,8 @@ ruleset gossip_protocol {
     fired {
       holder = ent:temperature_logs{sensorId}.defaultsTo({}).put(messageNum,message);
       ent:temperature_logs{sensorId} := holder;
+      holder2 = ent:tracker{sender}.defaultsTo({}).put(sensorId,messageNum);
+      ent:tracker{sender} := holder2
     }
   }
   
@@ -251,10 +274,10 @@ ruleset gossip_protocol {
   }
   
   // Just for testing the seen message
-  rule send_seen {
-    select when testing send_seen
-    event:send({"eci":"YL21dYzzX719qSY7Uf7CM8", "domain":"gossip", "type":"seen", "attrs":event:attrs})
-  }
+  // rule send_seen {
+  //   select when testing send_seen
+  //   event:send({"eci":"YL21dYzzX719qSY7Uf7CM8", "domain":"gossip", "type":"seen", "attrs":event:attrs})
+  // }
 }
     // NOT NEEDED - DELETE BEFORE TURN IN
     // keeping just in case
