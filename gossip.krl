@@ -29,34 +29,6 @@ ruleset gossip_protocol {
       }
     }
     
-    // returns true if messages contains a message with a value higher than value
-    // compareMessagesToValue = function(messages, value){
-    //   results = messages.filter(function(v, k){
-    //     k.as("Number") > value.as("Number")
-    //   });
-    //   results.length() > 0
-    // }
-    
-    // // returns true if there are messages I have that data has not seen
-    // searchMessages = function(data){
-    //   missing = data.filter(function(v,k){
-    //     messages = ent:temperature_logs{k};
-    //     // If messages is null, I don't have any messages from that origin so just ingore
-    //     messages => compareMessagesToValue(messages, v) | false;
-    //   });
-    //   missing.length() > 0
-    // }
-     
-    // getPeer = function(){
-    //   all_subs = Subscriptions:established("Tx_role", "node");
-    //   missing = all_subs.filter(function(x){
-    //     seen_data = ent:tracker{x{"Tx"}};
-    //     seen_data => searchMessages(seen_data) | true;
-    //   });
-    //   // Pick a random eligible subscriber and return its channel
-    //   (missing.length() == 0) => null | missing[random:integer(missing.length()-1)]{"Tx"}
-    // }
-    
     // returns true if i have messages of higher number than the subscriber has seen
     checkSeenAll = function(highestSeen, messages){
       missing = messages.filter(function(v,k){
@@ -90,43 +62,14 @@ ruleset gossip_protocol {
       msgs => msgs[0].values()[0] | null
     }
     
-    //
-    // getLowest = function(messages){
-    //   keys = messages.keys();
-    //   lowest = keys[0];
-    //   messages.map(function(v,k){
-    //     k.as("Number") < lowest.as("Number")
-    //   });
-    //   messages{lowest}
-    // }
-    
-    // getMessageFromHighestVal = function(messages, value){
-    //   higher = messages.filter(function(v,k){
-    //     k.as("Number") > value
-    //   });
-    //   getLowest(higher)
-    // }
-    
-    // getNextFromSeen = function(seen){
-    //   seen.klog("HERE");
-    //   filtered = seen.map(function(v,k){
-    //     messages = ent:temperature_logs{k};
-    //     // if i have no messages with this origin id, skip. Otherwise, check for larger
-    //     messages => getMessageFromHighestVal(messages, v) | null
-    //   });
-    //   not_null = filtered.filter(function(v,k){
-    //     v => true | false
-    //   });
-    //   final = not_null.values();
-    //   final => final[0] | null
-    // }
-    
+    // return all messages with a higher number
     checkHaveHigherNumberMessage = function(highestSeen, messages){
       messages.filter(function(v,k){
         k.as("Number") > highestSeen
       })
     }
     
+    // get the oldest unseen message
     getNextFromSeen = function(seen){
       unseenMessages = ent:temperature_logs.map(function(v, k){
         highestSeen = seen{k};
@@ -166,6 +109,20 @@ ruleset gossip_protocol {
       // prepareRumor(subscriber);
       // prepareSeen();
       (random:integer(1) == 0) => prepareRumor(subscriber) | prepareSeen(subscriber)
+    }
+    
+    getAllMissingMessages = function(seen){
+      unseenMessages = ent:temperature_logs.map(function(v, k){
+        highestSeen = seen{k};
+        highestSeen.isnull() => v | checkHaveHigherNumberMessage(highestSeen,v)
+      });
+      vals = unseenMessages.values();
+      not_null = vals.filter(function(x){
+        x.keys().length > 0
+      });
+      not_null.reduce(function(a,b){
+        a.append(b.values())
+      }, []);
     }
     
     getNumber = function(string){
@@ -258,12 +215,20 @@ ruleset gossip_protocol {
     fired {
       ent:tracker{sender} := seen;
       // send the sender the messages you have that they don't
+      raise gossip event "respond_to_rumor" attributes {"to":sender, "seen":seen}
     }
   }
   
   rule rumor_respond {
     select when gossip respond_to_rumor
-    
+    foreach getAllMissingMessages(event:attrs{"seen"}) setting (msg)
+    pre{
+      to = event:attrs{"to"}
+    }
+    event:send({"eci":to, "domain":"gossip", "type":"rumor", "attrs":{"rumor": msg}})
+    always {
+      ent:tracker{to} := ent:tracker{to}.defaultsTo({}).put(msg{"SensorID"},getNumber(msg{"MessageID"}) )
+    }
   }
   
   // Helpers *******************************************************************
