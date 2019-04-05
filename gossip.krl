@@ -1,6 +1,6 @@
 ruleset gossip_protocol {
   meta {
-    shares __testing, temps, track, blah, getFirstMessage
+    shares __testing, temps, track, blah, getFirstMessage, getAllMessages, zeroIsNull
     use module io.picolabs.subscription alias Subscriptions
   }
   global {
@@ -8,8 +8,9 @@ ruleset gossip_protocol {
       [ { "name": "__testing" },
         { "name": "temps"},
         { "name": "track"},
-        { "name": "blah"},
-        { "name": "getFirstMessage"}
+        { "name": "zeroIsNull"},
+        { "name": "getFirstMessage"},
+        { "name": "getAllMessages"}
       //, { "name": "entry", "args": [ "key" ] }
       ] , "events":
       [ { "domain": "gossip", "type": "seen", "attrs": ["seen"] },
@@ -20,7 +21,10 @@ ruleset gossip_protocol {
     // For testing
     temps = function(){ent:temperature_logs}
     track = function(){ent:tracker}
-    blah = function(){random:integer(5)}
+    zeroIsNull = function(){
+      thing = 0;
+      thing.isnull() => "NULL" | "not null"
+    }
     // ***********
     
     createMessage = function(data){
@@ -32,28 +36,55 @@ ruleset gossip_protocol {
     }
     
     // returns true if messages contains a message with a value higher than value
-    compareMessagesToValue = function(messages, value){
-      results = messages.filter(function(v, k){
-        k.as("Number") > value.as("Number")
+    // compareMessagesToValue = function(messages, value){
+    //   results = messages.filter(function(v, k){
+    //     k.as("Number") > value.as("Number")
+    //   });
+    //   results.length() > 0
+    // }
+    
+    // // returns true if there are messages I have that data has not seen
+    // searchMessages = function(data){
+    //   missing = data.filter(function(v,k){
+    //     messages = ent:temperature_logs{k};
+    //     // If messages is null, I don't have any messages from that origin so just ingore
+    //     messages => compareMessagesToValue(messages, v) | false;
+    //   });
+    //   missing.length() > 0
+    // }
+     
+    // getPeer = function(){
+    //   all_subs = Subscriptions:established("Tx_role", "node");
+    //   missing = all_subs.filter(function(x){
+    //     seen_data = ent:tracker{x{"Tx"}};
+    //     seen_data => searchMessages(seen_data) | true;
+    //   });
+    //   // Pick a random eligible subscriber and return its channel
+    //   (missing.length() == 0) => null | missing[random:integer(missing.length()-1)]{"Tx"}
+    // }
+    
+    // returns true if i have messages of higher number than the subscriber has seen
+    checkSeenAll = function(highestSeen, messages){
+      missing = messages.filter(function(v,k){
+        k.as("Number") > highestSeen
       });
-      results.length() > 0
+      missing.length() > 0
     }
     
-    // returns true if there are messages I have that data has not seen
-    searchMessages = function(data){
-      missing = data.filter(function(v,k){
-        messages = ent:temperature_logs{k};
-        // If messages is null, I don't have any messages from that origin so just ingore
-        messages => compareMessagesToValue(messages, v) | false;
+    // loop through seen messages, returns true if I have messagse subscriber needs
+    loopMessages = function(subscriber){
+      missing = ent:temperature_logs.filter(function(v,k){
+        seenAtLeastOne = ent:tracker{[subscriber,k]};
+        // if null, i have messages from a source from which the subscriber hasn't seen any messages
+        seenAtLeastOne.isnull() => true | checkSeenAll(seenAtLeastOne.as("Number"),v)
       });
       missing.length() > 0
     }
     
     getPeer = function(){
-      all_subs = Subscriptions:established("Tx_role", "node").klog("SUBS");
+      all_subs = Subscriptions:established("Tx_role", "node");
       missing = all_subs.filter(function(x){
-        seen_data = ent:tracker{x{"Tx"}};
-        seen_data => searchMessages(seen_data) | true;
+        loopMessages(x{"Tx"})
       });
       // Pick a random eligible subscriber and return its channel
       (missing.length() == 0) => null | missing[random:integer(missing.length()-1)]{"Tx"}
@@ -65,33 +96,56 @@ ruleset gossip_protocol {
       msgs => msgs[0].values()[0] | null
     }
     
-    getLowest = function(messages){
-      keys = messages.keys();
-      lowest = keys[0];
-      messages.map(function(v,k){
-        k.as("Number") < lowest.as("Number")
-      });
-      messages{lowest}
-    }
+    // // FIX THIS, IT'S WRONG
+    // getLowest = function(messages){
+    //   keys = messages.keys();
+    //   lowest = keys[0];
+    //   messages.map(function(v,k){
+    //     k.as("Number") < lowest.as("Number")
+    //   });
+    //   messages{lowest}
+    // }
     
-    getMessageFromHighestVal = function(messages, value){
-      higher = messages.filter(function(v,k){
-        k.as("Number") > value
-      });
-      getLowest(higher)
+    // getMessageFromHighestVal = function(messages, value){
+    //   higher = messages.filter(function(v,k){
+    //     k.as("Number") > value
+    //   });
+    //   getLowest(higher)
+    // }
+    
+    // getNextFromSeen = function(seen){
+    //   seen.klog("HERE");
+    //   filtered = seen.map(function(v,k){
+    //     messages = ent:temperature_logs{k};
+    //     // if i have no messages with this origin id, skip. Otherwise, check for larger
+    //     messages => getMessageFromHighestVal(messages, v) | null
+    //   });
+    //   not_null = filtered.filter(function(v,k){
+    //     v => true | false
+    //   });
+    //   final = not_null.values();
+    //   final => final[0] | null
+    // }
+    
+    checkHaveHigherNumberMessage = function(highestSeen, messages){
+      messages.filter(function(v,k){
+        k.as("Number") > highestSeen
+      })
     }
     
     getNextFromSeen = function(seen){
-      filtered = seen.map(function(v,k){
-        messages = ent:temperature_logs{k};
-        // if i have no messages with this origin id, skip. Otherwise, check for larger
-        messages => getMessageFromHighestVal(messages, v) | null
+      unseenMessages = ent:temperature_logs.map(function(v, k){
+        highestSeen = seen{k};
+        highestSeen.isnull() => v | checkHaveHigherNumberMessage(highestSeen,v)
       });
-      not_null = filtered.filter(function(v,k){
-        v => true | false
+      vals = unseenMessages.values();
+      not_null = vals.filter(function(x){
+        x.keys().length > 0
       });
-      final = not_null.values();
-      final => final[0] | null
+      just_messages = not_null.reduce(function(a,b){
+        a.append(b.values())
+      }, []);
+      just_messages.length() > 0 => just_messages[0] | null
     }
     
     // should get the lowest number message i have that the subscriber hasn't seen
@@ -119,8 +173,14 @@ ruleset gossip_protocol {
       (random:integer(1) == 0) => prepareRumor(subscriber) | prepareSeen(subscriber)
     }
     
-    update = function(){
-      // update the seen if you sent a rumor (i don't think i need to if i only sent a seen)
+    getAllUnseenMessages = function(subscriber){
+      seen = ent:tracker{subscriber};
+      seen => a | getAllMessages()
+    }
+    
+    getAllMessages = function(){
+      vals = ent:temperature_logs.values();
+      vals
     }
     
     getNumber = function(string){
@@ -193,8 +253,11 @@ ruleset gossip_protocol {
     fired {
       holder = ent:temperature_logs{sensorId}.defaultsTo({}).put(messageNum,message);
       ent:temperature_logs{sensorId} := holder;
+      // Not sure if I want to keep this
       holder2 = ent:tracker{sender}.defaultsTo({}).put(sensorId,messageNum);
-      ent:tracker{sender} := holder2
+      ent:tracker{sender} := holder2;
+      // send a seen response to whoever sent me this
+      // raise gossip event "respond_to_rumor" attributes {"to"
     }
   }
   
@@ -208,9 +271,14 @@ ruleset gossip_protocol {
     if seen then noop()
     
     fired {
-      ent:tracker{sender} := seen
+      ent:tracker{sender} := seen;
       // send the sender the messages you have that they don't
     }
+  }
+  
+  rule rumor_respond {
+    select when gossip respond_to_rumor
+    
   }
   
   // Helpers *******************************************************************
@@ -272,20 +340,5 @@ ruleset gossip_protocol {
       ent:sequenceNum := ent:sequenceNum + 1;
     }
   }
-  
-  // Just for testing the seen message
-  // rule send_seen {
-  //   select when testing send_seen
-  //   event:send({"eci":"YL21dYzzX719qSY7Uf7CM8", "domain":"gossip", "type":"seen", "attrs":event:attrs})
-  // }
+
 }
-    // NOT NEEDED - DELETE BEFORE TURN IN
-    // keeping just in case
-    // needsMyTemps = function(){
-    //   subs = Subscriptions:established("Tx_role", "node").klog("SUBS");
-    //   has_not_seen = subs.filter(function(x){
-    //     node = ent:tracker{x{"Tx"}}.klog("NODE");
-    //     node => (node{meta:picoId}.as("Number") < ent:sequenceNum => true | false) | true
-    //   });
-    //   has_not_seen
-    // }
