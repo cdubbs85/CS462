@@ -1,6 +1,6 @@
 ruleset gossip_protocol {
   meta {
-    shares __testing, temps, track, blah, getFirstMessage
+    shares __testing, temps, track, getFirstMessage
     use module io.picolabs.subscription alias Subscriptions
   }
   global {
