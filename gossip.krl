@@ -1,6 +1,6 @@
 ruleset gossip_protocol {
   meta {
-    shares __testing, temps, track, blah, getFirstMessage, getAllMessages, zeroIsNull
+    shares __testing, temps, track, blah, getFirstMessage
     use module io.picolabs.subscription alias Subscriptions
   }
   global {
@@ -8,9 +8,7 @@ ruleset gossip_protocol {
       [ { "name": "__testing" },
         { "name": "temps"},
         { "name": "track"},
-        { "name": "zeroIsNull"},
-        { "name": "getFirstMessage"},
-        { "name": "getAllMessages"}
+        { "name": "getFirstMessage"}
       //, { "name": "entry", "args": [ "key" ] }
       ] , "events":
       [ { "domain": "gossip", "type": "seen", "attrs": ["seen"] },
@@ -21,10 +19,6 @@ ruleset gossip_protocol {
     // For testing
     temps = function(){ent:temperature_logs}
     track = function(){ent:tracker}
-    zeroIsNull = function(){
-      thing = 0;
-      thing.isnull() => "NULL" | "not null"
-    }
     // ***********
     
     createMessage = function(data){
@@ -96,7 +90,7 @@ ruleset gossip_protocol {
       msgs => msgs[0].values()[0] | null
     }
     
-    // // FIX THIS, IT'S WRONG
+    //
     // getLowest = function(messages){
     //   keys = messages.keys();
     //   lowest = keys[0];
@@ -171,16 +165,6 @@ ruleset gossip_protocol {
       // prepareRumor(subscriber);
       // prepareSeen();
       (random:integer(1) == 0) => prepareRumor(subscriber) | prepareSeen(subscriber)
-    }
-    
-    getAllUnseenMessages = function(subscriber){
-      seen = ent:tracker{subscriber};
-      seen => a | getAllMessages()
-    }
-    
-    getAllMessages = function(){
-      vals = ent:temperature_logs.values();
-      vals
     }
     
     getNumber = function(string){
