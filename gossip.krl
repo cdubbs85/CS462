@@ -147,6 +147,7 @@ ruleset gossip_protocol {
       seen = ent:tracker{subscriber};
       // if we don't know anything about what this subscriber has seen, send them the first message we have
       //  otherwise, use their seen to find a message to send
+      // UPDATE - I probably don't need getFirstMessage() after now. getNext should handle it. But I'm afraid to remove it
       msg = seen => getNextFromSeen(seen) | getFirstMessage();
       msg => {"type":"rumor", "msg":msg} | null;
     }
