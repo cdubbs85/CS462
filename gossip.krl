@@ -255,6 +255,8 @@ ruleset gossip_protocol {
     }
   }
   
+  // TODO - Add a rule that says: If i have been turned off and turn back on
+  //  then send a seen message to all my subscriptions
   rule update_processing_state {
     select when gossip process
     pre {
