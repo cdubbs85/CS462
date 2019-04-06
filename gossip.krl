@@ -46,6 +46,7 @@ ruleset gossip_protocol {
       missing.length() > 0
     }
     
+    // selects a single peer from those peers who need info from me
     getPeer = function(){
       all_subs = Subscriptions:established("Tx_role", "node");
       missing = all_subs.filter(function(x){
@@ -55,7 +56,7 @@ ruleset gossip_protocol {
       (missing.length() == 0) => null | missing[random:integer(missing.length()-1)]{"Tx"}
     }
     
-    // get the first message in your logs
+    // get the first message in logs
     getFirstMessage = function(){
       msgs = ent:temperature_logs.values();
       msgs => msgs[0].values()[0] | null
@@ -68,8 +69,7 @@ ruleset gossip_protocol {
       })
     }
     
-    // get the oldest unseen message
-    getNextFromSeen = function(seen){
+    getAllMissingMessages = function(seen){
       unseenMessages = ent:temperature_logs.map(function(v, k){
         highestSeen = seen{k};
         highestSeen.isnull() => v | checkHaveHigherNumberMessage(highestSeen,v)
@@ -78,10 +78,15 @@ ruleset gossip_protocol {
       not_null = vals.filter(function(x){
         x.keys().length > 0
       });
-      just_messages = not_null.reduce(function(a,b){
+      not_null.reduce(function(a,b){
         a.append(b.values())
       }, []);
-      just_messages.length() > 0 => just_messages[0] | null
+    }
+    
+    // get the oldest unseen message
+    getNextSingleMessage = function(seen){
+      seen_messages = getAllMissingMessages(seen);
+      seen_messages.length() > 0 => seen_messages[0] | null
     }
     
     // should get the lowest number message i have that the subscriber hasn't seen
@@ -90,7 +95,7 @@ ruleset gossip_protocol {
       // if we don't know anything about what this subscriber has seen, send them the first message we have
       //  otherwise, use their seen to find a message to send
       // UPDATE - I probably don't need getFirstMessage() after now. getNext should handle it. But I'm afraid to remove it
-      msg = seen => getNextFromSeen(seen) | getFirstMessage();
+      msg = seen => getNextSingleMessage(seen) | getFirstMessage();
       msg => {"type":"rumor", "msg":msg} | null;
     }
     
@@ -108,20 +113,6 @@ ruleset gossip_protocol {
       // prepareRumor(subscriber);
       // prepareSeen();
       (random:integer(1) == 0) => prepareRumor(subscriber) | prepareSeen(subscriber)
-    }
-    
-    getAllMissingMessages = function(seen){
-      unseenMessages = ent:temperature_logs.map(function(v, k){
-        highestSeen = seen{k};
-        highestSeen.isnull() => v | checkHaveHigherNumberMessage(highestSeen,v)
-      });
-      vals = unseenMessages.values();
-      not_null = vals.filter(function(x){
-        x.keys().length > 0
-      });
-      not_null.reduce(function(a,b){
-        a.append(b.values())
-      }, []);
     }
     
     getNumber = function(string){
@@ -254,8 +245,6 @@ ruleset gossip_protocol {
     }
   }
   
-  // TODO - Add a rule that says: If i have been turned off and turn back on
-  //  then send a seen message to all my subscriptions
   rule update_processing_state {
     select when gossip process
     pre {
