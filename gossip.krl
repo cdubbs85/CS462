@@ -7,12 +7,11 @@ ruleset gossip_protocol {
     __testing = { "queries":
       [ { "name": "__testing" },
         { "name": "temps"},
-        { "name": "track"},
-        { "name": "getFirstMessage"}
+        { "name": "track"}
       //, { "name": "entry", "args": [ "key" ] }
       ] , "events":
       [ { "domain": "gossip", "type": "seen", "attrs": ["seen"] },
-        { "domain": "test", "type": "test", "attrs": ["temps"] }
+        { "domain": "testing", "type": "update_period", "attrs": ["period"] }
       //, { "domain": "d2", "type": "t2", "attrs": [ "a1", "a2" ] }
       ]
     }
@@ -268,6 +267,19 @@ ruleset gossip_protocol {
     }
   }
   
+  // When going from process off to on, update all peers of my seen state
+  rule processing_send_seen {
+    select when gossip process where process == "on"
+    foreach Subscriptions:established("Tx_role", "node") setting (sub)
+    pre {
+      to = sub{"Tx"}
+      msg = prepareSeen()
+    }
+    
+    event:send({"eci": to, "domain":"gossip", "type":"seen", "attrs":{"seen": msg}})
+    
+  }
+  
   rule update_period {
     select when gossip update_period
     pre {
@@ -276,6 +288,13 @@ ruleset gossip_protocol {
     if new_period then noop()
     fired {
       ent:period := new_period
+    }
+  }
+  
+  rule just_for_testing {
+    select when testing update_period
+    always{
+      ent:period := event:attrs{"period"}.as("Number")
     }
   }
   
