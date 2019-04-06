@@ -89,20 +89,23 @@ ruleset gossip_protocol {
       seen_messages.length() > 0 => seen_messages[0] | null
     }
     
-    // should get the lowest number message i have that the subscriber hasn't seen
+    // returns {"type":"rumor", "msg":actualMessage/null}
     prepareRumor = function(subscriber){
       seen = ent:tracker{subscriber};
       // if we don't know anything about what this subscriber has seen, send them the first message we have
       //  otherwise, use their seen to find a message to send
-      // UPDATE - I probably don't need getFirstMessage() after now. getNext should handle it. But I'm afraid to remove it
+      // UPDATE - I probably don't need getFirstMessage() now. getNext should handle it. But I'm afraid to remove it
       msg = seen => getNextSingleMessage(seen) | getFirstMessage();
       msg => {"type":"rumor", "msg":msg} | null;
     }
     
+    // returns {"type":"seen", "msg":actualMessage/null}
     prepareSeen = function(){
       // look through your messages and prepare a seen structured message
       vals = ent:temperature_logs.map(function(v,k){
+        // get the sorted keys (all :# values i've seen)
         vals = (v.keys().map(function(x){x.as("Number")})).sort();
+        // now get the highest sequential number
         highest = vals.reduce(function(f, s){ s == f + 1 => s | -1 });
         highest;
       });
